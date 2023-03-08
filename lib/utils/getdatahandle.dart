@@ -40,21 +40,6 @@ List dataHandle(
     print('>>预测进度 $progress/$max');
   } else if (event.contains('SN Time')) {
     List<String> temp = event.split(" ");
-    fileMaxBits = 0;
-    for (var e in temp) {
-      switch (e) {
-        case 'Time':
-        case 'TVoc':
-          fileMaxBits += 4;
-          break;
-        default:
-          if (e.length > 5) {
-            fileMaxBits += 2;
-          }
-          fileMaxBits += 2;
-      }
-    }
-    fileMaxBits += temp.length + 2;
     double nowP = progress / 512;
     double piecesNum = 4096 / fileMaxBits;
     String e = event.replaceAll(" ", ",");
@@ -67,9 +52,9 @@ List dataHandle(
   } else if (event.contains('FileEnd')) {
     return [
       "FileEnd",
-      text,
+      text += event,
       deviceID,
-      progress,
+      max,
       max,
       fileMaxBits,
       progressFile,

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bluetooth_test/utils/byte.dart';
+import 'package:bluetooth_test/utils/data.dart';
 import 'package:bluetooth_test/utils/saveFile.dart';
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
@@ -18,7 +19,7 @@ class DeviceHandle2Page extends StatefulWidget {
     super.key,
     required this.r,
   });
-  final ScanResult r;
+  final ScanResult r; //设备对象
 
   @override
   State<DeviceHandle2Page> createState() => _DeviceHandle2PageState();
@@ -26,6 +27,7 @@ class DeviceHandle2Page extends StatefulWidget {
 
 class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
   int mtu = 0; //MTU值
+  double _setMTUVal = 185; //MTU设置值（根据IOS最大值设置）
   bool _isConnecting = false; //是否正在连接
   bool _isConnected = false; //是否已连接
 
@@ -37,16 +39,19 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
   int _progressFile = 0; //当前文件进度
   int _maxFile = 1; //文件最大进度
 
+  StreamSubscription<bool>? _isConnectedListen; //连接状态监听
+
   final ScrollController _scrollController = ScrollController(); //滚动控制器
 
   BluetoothCharacteristic? mCharacteristic; //当前选择的特征值对象
+  StreamSubscription<List<int>>? _cListen; //特征值监听
 
   List<BluetoothCharacteristic> _characteristics = []; //所有特征值对象集合
   String _selectCharacteristic = ""; //选择的特征值
   List pickerData = []; //特征值选择器数据
 
   final TextEditingController _textController = TextEditingController(
-    text: '{"sub setpoint":[[65000],[1,2,3],1]}',
+    text: '',
   ); //输入框控制器
 
   bool _isOpenNofity = false; //是否打开通知
@@ -57,6 +62,7 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
     //   _isConnecting = true;
     // });
     // link();
+
     super.initState();
   }
 
@@ -136,8 +142,11 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
 //_BleDataCallback 方法在6.匹配对应权限特征中 调用
   Future<void> bleDataCallback() async {
     print(">>> 等待蓝牙返回数据 <<<");
-    await mCharacteristic?.setNotifyValue(_isOpenNofity);
-    mCharacteristic?.value.listen((value) {
+    if (mCharacteristic == null) {
+      return;
+    }
+    await mCharacteristic!.setNotifyValue(_isOpenNofity);
+    _cListen = mCharacteristic!.value.listen((List<int> value) {
       // do something with new value
       // print("我是蓝牙返回数据 - $value");
       if (value.isEmpty) {
@@ -155,11 +164,12 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
           data.add(value[i]);
         }
       }
-      // print("蓝牙返回数据 >> $value");
-      print("处理后 >> $data");
-      // print(">> ${utf8.decode(value)}");
-      print(">> ${utf8.decode(data)}");
+      // // print("蓝牙返回数据 >> $value");
+      // print("处理后 >> $data");
+      // // print(">> ${utf8.decode(value)}");
+      // print(">> ${utf8.decode(data)}");
       String dataStr = utf8.decode(value);
+      _fileMaxBits = _fileMaxBits < value.length ? _fileMaxBits : value.length;
       print(">> $dataStr");
       List temp = dataHandle(
         dataStr,
@@ -180,11 +190,35 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
         _progressFile = temp[6];
         _maxFile = temp[7];
       });
+      if (temp[0] == "FileEnd") {
+        BotToast.showText(text: '传输完成');
+        _fileMaxBits = 0;
+        Timer(const Duration(milliseconds: 500), () {
+          _scrollController.jumpTo(
+            _scrollController.position.maxScrollExtent,
+          );
+        });
+      } else {
+        _scrollController.jumpTo(
+          _scrollController.position.maxScrollExtent,
+        );
+      }
+    }, onDone: () {
+      print(">>> 蓝牙返回数据结束 <<<");
+    }, onError: (error) {
+      print(">>> 蓝牙返回数据错误: $error <<<");
+    }, cancelOnError: false);
 
-      _scrollController.jumpTo(
-        _scrollController.position.maxScrollExtent,
-      );
-    });
+    // List<BluetoothDescriptor> descriptors = c.descriptors;
+    // for (BluetoothDescriptor descriptor in descriptors) {
+    //   print(">>> descriptor: ${descriptor.uuid} <<<");
+    //   if (descriptor.uuid.toString().toUpperCase().substring(4, 8) == "2902") {
+    //     // descriptor.write(ENABLE_INDICATION);
+    //     descriptor.value.listen((value) {
+    //       print(">>> descriptor value: $value <<<");
+    //     });
+    //   }
+    // }
   }
 
   //连接蓝牙设备
@@ -192,20 +226,20 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
     setState(() {
       _isConnecting = true;
     });
-    widget.r.device.connect().then(
+    widget.r.device.connect(autoConnect: false).then(
       (value) {
-        widget.r.device.requestMtu(Platform.isIOS ? 185 : 512).then((value) {
-          setState(() {
-            mtu = value;
-            _isConnecting = false;
-          });
-
-          widget.r.device.isDiscoveringServices.listen((event) {
-            if (!_isConnecting && !event && _selectCharacteristic == "") {
-              _selectCharacteristic = "-";
-              _buleDiscoverServices();
-            }
-          });
+        setState(() {
+          _isConnecting = false;
+        });
+        if (_isConnectedListen != null) {
+          _isConnectedListen = null;
+        }
+        _isConnectedListen =
+            widget.r.device.isDiscoveringServices.listen((event) {
+          if (!_isConnecting && !event && _selectCharacteristic == "") {
+            _selectCharacteristic = "-";
+            _buleDiscoverServices();
+          }
         });
       },
     ).catchError((e) {
@@ -216,6 +250,7 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
     });
   }
 
+  //选择服务
   showPicker(BuildContext context) async {
     if (pickerData.isEmpty) {
       return;
@@ -258,6 +293,8 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
               _isConnected = true;
               onPressed = () => widget.r.device.disconnect().then((value) {
                     setState(() {
+                      _cListen?.cancel();
+                      _cListen = null;
                       _isOpenNofity = false;
                       mCharacteristic = null;
                       _characteristics.clear();
@@ -374,32 +411,30 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
                       mainAxisSize: MainAxisSize.max,
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('$mtu'),
-                        ElevatedButton(
-                          onPressed: snapshot.data ==
-                                  BluetoothDeviceState.connected
-                              ? () async {
-                                  var rMTU = await widget.r.device.mtu.first;
-                                  setState(() {
-                                    mtu = rMTU;
-                                  });
-                                }
-                              : null,
-                          child: const Text("Get MTU"),
+                        Text('MTU:${mtu == 0 ? "" : mtu}'),
+                        SizedBox(
+                          width: 100.w-200,
+                          child: Slider(
+                            min: 23,
+                            max: 512,
+                            divisions: 60,
+                            value: _setMTUVal,
+                            onChanged: (v) => setState(() {
+                              _setMTUVal = v.toInt().toDouble();
+                            }),
+                          ),
                         ),
                         ElevatedButton(
-                          onPressed: snapshot.data ==
-                                  BluetoothDeviceState.connected
-                              ? () async {
-                                  var rMTU = await widget.r.device
-                                      .requestMtu(Platform.isIOS ? 185 : 512);
-                                  setState(() {
-                                    mtu = rMTU;
-                                  });
-                                }
-                              : null,
+                          onPressed:
+                              snapshot.data == BluetoothDeviceState.connected
+                                  ? () => widget.r.device
+                                      .requestMtu(_setMTUVal.toInt())
+                                      .then((value) => setState(() {
+                                            mtu = value;
+                                          }))
+                                  : null,
                           child: Text(
-                            "Set MTU size ${Platform.isIOS ? 185 : 512}",
+                            "Set MTU ${_setMTUVal.toInt()}",
                           ),
                         ),
                       ],
@@ -447,7 +482,9 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
                                           "匹配到正确的特征值 >>> ${c.uuid.toString()} <<<");
                                       if (mCharacteristic != null) {
                                         mCharacteristic!.setNotifyValue(false);
+                                        _cListen!.cancel();
                                         mCharacteristic = null;
+                                        _cListen = null;
                                       }
                                       setState(() {
                                         mCharacteristic = c;
@@ -501,6 +538,7 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
                                       _fileMaxBits = 11; //一条数据预测占用位数
                                       _progressFile = 0; //当前文件进度
                                       _maxFile = 1; //文件最大进度
+                                      print(tobyte(_textController.text));
                                       mCharacteristic!
                                           .write(tobyte(_textController.text));
                                       // var descriptors =
@@ -571,7 +609,7 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
                       ),
                     SizedBox(
                       //收到的数据显示区
-                      height: 300,
+                      height: 100.h - 400,
                       child: CustomScrollView(
                         controller: _scrollController,
                         slivers: [
