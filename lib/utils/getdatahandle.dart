@@ -19,13 +19,15 @@ List dataHandle(
     text += ",$deviceID";
   } else if (event.contains('/')) {
     List<String> temp = event.split("/");
+    double piecesNum = 0.0;
     try {
       progressFile = int.parse(temp[0]);
       maxFile = int.parse(temp[1]);
-      double piecesNum = 4096 / fileMaxBits;
+      double piecesNum = 4096 / fileMaxBits * 2;
       progress = (progressFile - 1) * piecesNum;
       max = maxFile * piecesNum;
     } catch (e) {
+      print('>>>error: $e');
       return [
         "error",
         text,
@@ -37,7 +39,8 @@ List dataHandle(
         maxFile
       ];
     }
-    print('>>预测进度 $progress/$max');
+    print('>>>maxFile: $maxFile - $piecesNum');
+    print('>>>预测进度 $progress/$max');
   } else if (event.contains('SN Time')) {
     List<String> temp = event.split(" ");
     double nowP = progress / 512;
@@ -45,10 +48,10 @@ List dataHandle(
     String e = event.replaceAll(" ", ",");
     max = maxFile * piecesNum;
     text += '\n$e';
-    print('fileMaxBits:$fileMaxBits');
-    print('maxFile:$maxFile');
-    print('max:$max');
-    print('>>计算实际 $progress/$max ||| $nowP');
+    print('|>>fileMaxBits:$fileMaxBits');
+    print('|>>maxFile:$maxFile');
+    print('|>>max:$max');
+    print('|>>|>计算实际 $progress/$max ||| $nowP');
   } else if (event.contains('FileEnd')) {
     return [
       "FileEnd",

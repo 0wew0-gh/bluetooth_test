@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bluetooth_test/utils/byte.dart';
-import 'package:bluetooth_test/utils/data.dart';
 import 'package:bluetooth_test/utils/saveFile.dart';
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
@@ -141,10 +139,14 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
   //mCharacteristic   4.扫描蓝牙设备备注有介绍、6.匹配对应权限特征中给它赋值
 //_BleDataCallback 方法在6.匹配对应权限特征中 调用
   Future<void> bleDataCallback() async {
-    print(">>> 等待蓝牙返回数据 <<<");
     if (mCharacteristic == null) {
       return;
     }
+    if (_cListen != null) {
+      _cListen!.cancel();
+      _cListen = null;
+    }
+    print(">>> 等待蓝牙返回数据 <<<");
     await mCharacteristic!.setNotifyValue(_isOpenNofity);
     _cListen = mCharacteristic!.value.listen((List<int> value) {
       // do something with new value
@@ -169,8 +171,10 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
       // // print(">> ${utf8.decode(value)}");
       // print(">> ${utf8.decode(data)}");
       String dataStr = utf8.decode(value);
-      _fileMaxBits = _fileMaxBits < value.length ? _fileMaxBits : value.length;
-      print(">> $dataStr");
+      // print(">> $dataStr");
+      if (_fileMaxBits < value.length) {
+        _fileMaxBits = value.length;
+      }
       List temp = dataHandle(
         dataStr,
         _text,
@@ -190,6 +194,7 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
         _progressFile = temp[6];
         _maxFile = temp[7];
       });
+      print('$_progress/$_max');
       if (temp[0] == "FileEnd") {
         BotToast.showText(text: '传输完成');
         _fileMaxBits = 0;
@@ -413,7 +418,7 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
                       children: [
                         Text('MTU:${mtu == 0 ? "" : mtu}'),
                         SizedBox(
-                          width: 100.w-200,
+                          width: 100.w - 200,
                           child: Slider(
                             min: 23,
                             max: 512,
@@ -482,9 +487,7 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
                                           "匹配到正确的特征值 >>> ${c.uuid.toString()} <<<");
                                       if (mCharacteristic != null) {
                                         mCharacteristic!.setNotifyValue(false);
-                                        _cListen!.cancel();
                                         mCharacteristic = null;
-                                        _cListen = null;
                                       }
                                       setState(() {
                                         mCharacteristic = c;
@@ -526,36 +529,35 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
                           ),
                         ),
                         ElevatedButton(
-                          onPressed:
-                              snapshot.data == BluetoothDeviceState.connected &&
-                                      mCharacteristic != null
-                                  ? () async {
-                                      setState(() {
-                                        _text = "";
-                                      });
-                                      _progress = 0; //进度条当前进度
-                                      _max = 200; //进度条最大进度
-                                      _fileMaxBits = 11; //一条数据预测占用位数
-                                      _progressFile = 0; //当前文件进度
-                                      _maxFile = 1; //文件最大进度
-                                      print(tobyte(_textController.text));
-                                      mCharacteristic!
-                                          .write(tobyte(_textController.text));
-                                      // var descriptors =
-                                      //     mCharacteristic!.descriptors;
-                                      // print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv");
-                                      // print(descriptors.length);
-                                      // for (BluetoothDescriptor d in descriptors) {
-                                      //   List<int> value = await d.read();
-                                      //   print(value);
-                                      //   print('d.write');
-                                      //   d
-                                      //       .write(tobyte(_textController.text))
-                                      //       .catchError((e) => print('Error::$e'));
-                                      // }
-                                      // print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
-                                    }
-                                  : null,
+                          onPressed: snapshot.data ==
+                                      BluetoothDeviceState.connected &&
+                                  mCharacteristic != null
+                              ? () async {
+                                  setState(() {
+                                    _text = "";
+                                  });
+                                  _progress = 0; //进度条当前进度
+                                  _max = 200; //进度条最大进度
+                                  _fileMaxBits = 11; //一条数据预测占用位数
+                                  _progressFile = 0; //当前文件进度
+                                  _maxFile = 1; //文件最大进度
+                                  mCharacteristic!
+                                      .write(_textController.text.codeUnits);
+                                  // var descriptors =
+                                  //     mCharacteristic!.descriptors;
+                                  // print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv");
+                                  // print(descriptors.length);
+                                  // for (BluetoothDescriptor d in descriptors) {
+                                  //   List<int> value = await d.read();
+                                  //   print(value);
+                                  //   print('d.write');
+                                  //   d
+                                  //       .write(tobyte(_textController.text))
+                                  //       .catchError((e) => print('Error::$e'));
+                                  // }
+                                  // print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
+                                }
+                              : null,
                           child: const Text("send"),
                         ),
                       ],
