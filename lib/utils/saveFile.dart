@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:bluetooth_test/i18n/mytranslate.dart';
-import 'package:bluetooth_test/utils/data.dart';
+import 'data.dart';
 import 'package:bot_toast/bot_toast.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/services.dart';

@@ -49,7 +49,7 @@ class _DeviceHandle2PageState extends State<DeviceHandle2Page> {
   List pickerData = []; //特征值选择器数据
 
   final TextEditingController _textController = TextEditingController(
-    text: '',
+    text: '{"sub setpoint":[[65000],[1,2,3],1]}',
   ); //输入框控制器
 
   bool _isOpenNofity = false; //是否打开通知
