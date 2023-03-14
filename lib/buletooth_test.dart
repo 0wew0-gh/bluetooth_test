@@ -1,12 +1,16 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:bluetooth_test/utils/data.dart';
 import 'package:bot_toast/bot_toast.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
 
-import 'device_handle_view2.dart';
+import 'device_handle_view.dart';
 import 'i18n/mytranslate.dart';
 
 class BuletoothTestPage extends StatefulWidget {
@@ -22,12 +26,15 @@ class _BuletoothTestPageState extends State<BuletoothTestPage> {
   FlutterBluePlus flutterBlue = FlutterBluePlus.instance;
   List<ScanResult> _scanBlue = [];
   bool isOnBlue = true;
+  bool _isScanning = false;
 
   //是否过滤空蓝牙名字
   bool _isFilterEmptyName = true;
 
+  List<FileSystemEntity> fileList = [];
   @override
   void initState() {
+    getPath();
     var subscription = flutterBlue.scanResults.listen((results) {
       print(">>>>>${results.length}<<<<<");
       if (_isFilterEmptyName) {
@@ -110,12 +117,65 @@ class _BuletoothTestPageState extends State<BuletoothTestPage> {
     return isP;
   }
 
+  void getPath() async {
+    List? temp = await getExternalStorageDirectories();
+    if (temp == null || temp.isEmpty) {
+      return;
+    }
+    Directory appDocDir = Directory(temp[0].path);
+    if (appDocDir.existsSync()) {
+      setState(() {
+        fileList = appDocDir.listSync();
+      });
+    } else {
+      setState(() {
+        fileList.clear();
+      });
+    }
+  }
+
+  void traverseFolder() async {}
+
+  void clearFile() {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                for (var file in fileList) {
+                  file.deleteSync(recursive: true);
+                }
+                getPath();
+                Navigator.pop(context);
+              },
+              child: Text(tt('btn.yes')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(tt('btn.no')),
+            ),
+          ],
+          content: Text(tt('text.isDeleteAll')),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: isOnBlue ? null : Text(tt('text.blueOff')),
         backgroundColor: isOnBlue ? Colors.blue : Colors.red,
+        leading: fileList.isNotEmpty
+            ? IconButton(
+                onPressed: () => clearFile(),
+                icon: const Icon(Icons.delete),
+                tooltip: tt('btn.deleteAll'),
+              )
+            : null,
         actions: [
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -151,11 +211,35 @@ class _BuletoothTestPageState extends State<BuletoothTestPage> {
                 final index = i ~/ 2;
                 ScanResult result = _scanBlue[index];
                 return InkWell(
-                  onTap: () => Navigator.of(context).push(
+                  onTap: () => Navigator.of(context)
+                      .push(
                     MaterialPageRoute(
-                      builder: (context) => DeviceHandle2Page(r: result),
+                      builder: (context) => DeviceHandlePage(r: result),
                     ),
-                  ),
+                  )
+                      .then((value) async {
+                    Timer(const Duration(seconds: 2), () async {
+                      if (!await flutterBlue.isOn) {
+                        setState(() {
+                          _scanBlue.clear();
+                        });
+                        flutterBlue.turnOn().then(
+                          (value) {
+                            setState(() {
+                              isOnBlue = value;
+                            });
+                            Timer(const Duration(seconds: 3), () {
+                              flutterBlue.startScan(
+                                timeout: const Duration(seconds: 5),
+                              );
+                            });
+                          },
+                        );
+                      }
+                    });
+
+                    print("!!!\n@@@\n###\n===");
+                  }),
                   child: Row(
                     mainAxisSize: MainAxisSize.max,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -203,19 +287,37 @@ class _BuletoothTestPageState extends State<BuletoothTestPage> {
           } else {
             return FloatingActionButton(
               child: const Icon(Icons.search),
-              onPressed: () => flutterBlue
-                  .startScan(
-                timeout: const Duration(seconds: 5),
-              )
-                  .catchError((e) {
-                if (e.toString().contains('getBluetoothLeScanner() is null.')) {
-                  flutterBlue.turnOn().then(
-                        (value) => setState(() {
-                          isOnBlue = value;
-                        }),
-                      );
-                }
-              }),
+              onPressed: () => _isScanning
+                  ? null
+                  : flutterBlue
+                      .startScan(
+                      timeout: const Duration(seconds: 5),
+                    )
+                      .catchError((e) {
+                      setState(() {
+                        _isScanning = true;
+                      });
+                      if (e
+                          .toString()
+                          .contains('getBluetoothLeScanner() is null.')) {
+                        flutterBlue.turnOn().then(
+                          (value) {
+                            setState(() {
+                              isOnBlue = value;
+                            });
+                            Timer(const Duration(seconds: 2), () {
+                              flutterBlue
+                                  .startScan(
+                                    timeout: const Duration(seconds: 5),
+                                  )
+                                  .then((value) => setState(() {
+                                        _isScanning = false;
+                                      }));
+                            });
+                          },
+                        );
+                      }
+                    }),
             );
           }
         },
