@@ -3,7 +3,7 @@ Map zhcn = {
   'text': {
     'unknownDevice': '未知设备',
     'setLinkMode': '设置连接模式',
-    'saveSuccess': '保存成功!\n地址:',
+    'saveSuccess': '保存成功!\nTXT: ',
     'blueOff': '未开启蓝牙',
     'setSuccess': '设置完成',
     'nofitySetError': '通知设置失败',
@@ -11,7 +11,7 @@ Map zhcn = {
     'addListen': '添加监听',
     'connTimeOut': '连接超时',
     'disconnTimeOut': '断开连接超时',
-    'transferDone': '传输完成\n缺漏数',
+    'transferDone': '传输完成\n缺漏数: ',
   },
   'btn': {
     'saveFile': '保存文件',

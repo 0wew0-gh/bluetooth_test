@@ -35,7 +35,6 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
   // String _text = ''; //接收的数据
   final List<List<int>> _data = []; //接收的数据
   List<int> _olddata = []; //接收的数据
-  String _deviceID = ''; //设备ID
   double _progress = 0; //进度条当前进度
   double _max = 0; //进度条最大进度
   int _progressFile = 0; //当前文件进度
@@ -57,8 +56,11 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
   ); //输入框控制器
 
   String _filePath = '';
-  IOSink? _fios;
+  IOSink? _ftxt;
+  IOSink? _fcsv;
   bool _isOpenFile = false;
+
+  Timer? _timer;
 
   @override
   void initState() {
@@ -168,8 +170,61 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
           cL.cancel();
           cL = null;
         }
+        if (_timer != null) {
+          _timer!.cancel();
+          _timer = null;
+        }
         BotToast.showText(
             text: '${tt('text.addListen')}:${characteristic.uuid}');
+
+        double fileLine = 100;
+        _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+          characteristic.read().then((value) {
+            String val = utf8.decode(value);
+            print('read value: $value - $val');
+
+            List<String> temp = val.split("/");
+            if (temp[0] == temp[1]) {
+              if (mounted) {
+                setState(() {
+                  _isOpenFile = true;
+                  _progress = _max;
+                });
+              }
+              BotToast.showText(
+                text: '${tt('text.transferDone')}:$_errCount',
+              );
+              _timer!.cancel();
+              _timer = null;
+              Timer(const Duration(seconds: 2), () {
+                characteristic.setNotifyValue(false).then((value) async {
+                  setState(() {
+                    _isNotifyList[i] = false;
+                  });
+                });
+              });
+            } else {
+              if (temp[0] == "0") {
+                return;
+              }
+              try {
+                int p = int.parse(temp[0]);
+                if (mounted) {
+                  setState(() {
+                    _progress = p * fileLine;
+                    _progressFile = p;
+                    _max = double.parse(temp[1]) * fileLine;
+                    if (_max < _progress) {
+                      _max = _progress * 500;
+                    }
+                  });
+                }
+              } catch (e) {
+                print('progress Error:$e');
+              }
+            }
+          });
+        });
         cL = characteristic.value.listen((List<int> value) {
           if (value.isEmpty) {
             print('我是蓝牙返回数据 - 空！！$value <<');
@@ -178,65 +233,79 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
           if (_olddata != value) {
             String dataStr = utf8.decode(value);
 
+            if (dataStr.contains('/')) return;
+
             List temp = dataHandle(
               dataStr,
-              _progress,
-              _max,
-              _progressFile,
               _oldSN,
               _errCount,
             );
             switch (temp[0]) {
               case 'Done':
               case 'page':
-                if (_fios != null) {
-                  _fios!.write(temp[1]);
+                if (_ftxt != null) {
+                  _ftxt!.write(temp[1]);
                 }
-                break;
-              case 'DeivceID':
-                print('=== DeivceID ===');
-                List temp = dataStr.split(':');
-                String text = temp[0];
-                temp = temp[1].split('\n');
-                _deviceID = temp[0];
-                text += ',$_deviceID';
-                BotToast.showText(text: text);
-                if (_fios != null) {
-                  _fios!.write('$text\n');
+                if (_fcsv != null) {
+                  _fcsv!.write(temp[1]);
                 }
-                DateTime dt = DateTime.now();
-                getDataTime = dt.toString().substring(0, 19);
-                break;
-              case 'FileEnd':
-                print('${tt('text.transferDone')}:$_errCount');
-                BotToast.showText(
-                  text: '${tt('text.transferDone')}:$_errCount',
-                );
-                setState(() {
-                  _isOpenFile = true;
-                  _progress = _max;
-                });
-                Timer(const Duration(seconds: 2), () {
-                  characteristic.setNotifyValue(false).then((value) async {
+                //进度条推进
+                if (_progress < (_progressFile + 1) * fileLine) {
+                  if (mounted) {
                     setState(() {
-                      _isNotifyList[i] = false;
+                      _progress++;
                     });
-                  });
-                });
+                  }
+                } else {
+                  fileLine++;
+                }
                 break;
+              // case 'DeivceID':
+              //   print('=== DeivceID ===');
+              //   List temp = dataStr.split(':');
+              //   String text = temp[0];
+              //   temp = temp[1].split('\n');
+              //   _deviceID = temp[0];
+              //   text += ',$_deviceID';
+              //   BotToast.showText(text: text);
+              //   if (_ftxt != null) {
+              //     _ftxt!.write('$text\n');
+              //   }
+              //   if (_fcsv != null) {
+              //     _fcsv!.write('$text\n');
+              //   }
+              //   DateTime dt = DateTime.now();
+              //   getDataTime = dt.toString().substring(0, 19);
+              //   break;
+              // case 'FileEnd':
+              //   print('${tt('text.transferDone')}:$_errCount');
+              //   BotToast.showText(
+              //     text: '${tt('text.transferDone')}:$_errCount',
+              //   );
+              //   setState(() {
+              //     _isOpenFile = true;
+              //     _progress = _max;
+              //   });
+              //   Timer(const Duration(seconds: 2), () {
+              //     characteristic.setNotifyValue(false).then((value) async {
+              //       setState(() {
+              //         _isNotifyList[i] = false;
+              //       });
+              //     });
+              //   });
+              //   break;
               default:
             }
-            if (temp[0] != 'FileEnd') {
-              _progressFile = temp[4];
-              _oldSN = temp[5];
-              _errCount = temp[6];
-              if (mounted) {
-                setState(() {
-                  // _text = temp[1];
-                  _progress = double.parse(temp[2].toStringAsFixed(0));
-                  _max = double.parse(temp[3].toStringAsFixed(0));
-                });
-              }
+            if (!_isOpenFile) {
+              _oldSN = temp[2];
+              _errCount = temp[3];
+              // if (mounted) {
+              //   setState(() {
+              //     // _text = temp[1];
+              //     _progress = double.parse(temp[2].toStringAsFixed(0));
+              //     _max = double.parse(temp[3].toStringAsFixed(0));
+              //   });
+              // }
             }
           }
           _olddata = value;
@@ -320,17 +389,20 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
   Future<bool> createFile(String fileName) async {
     DateTime dt = DateTime.now();
     getDataTime = dt.toString().substring(0, 19);
-    String fn = '${fileName}_$getDataTime';
+    // String fn = '${fileName}_$getDataTime';
 
     List? temp = await getExternalStorageDirectories();
 
     if (temp == null || temp.isEmpty) {
       return false;
     }
-    Directory appDocDir = Directory(temp[0].path);
-    _filePath = p.join(appDocDir.path, '$fn.csv');
+    String deviceFolder = p.join(temp[0].path, fileName);
+    Directory appDocDir = Directory(deviceFolder);
+    appDocDir.createSync(recursive: true);
+    _filePath = p.join(deviceFolder, getDataTime);
+
     try {
-      File f = File(_filePath);
+      File f = File('$_filePath.txt');
       //判断文件是否存在
       bool isExist = await f.exists();
       print('File isExist: $isExist');
@@ -344,11 +416,30 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
         print('create F path:$_filePath');
       }
       print('创建文件');
-      if (_fios != null) {
-        await _fios!.close();
-        _fios = null;
+      if (_ftxt != null) {
+        await _ftxt!.close();
+        _ftxt = null;
       }
-      _fios = f.openWrite(mode: FileMode.writeOnlyAppend);
+      _ftxt = f.openWrite(mode: FileMode.writeOnlyAppend);
+      f = File('$_filePath.csv');
+      //判断文件是否存在
+      isExist = await f.exists();
+      print('File isExist: $isExist');
+      if (!isExist) {
+        //不存在则创建
+        f = await f.create();
+        print('create F path:$_filePath');
+      } else {
+        f.delete();
+        f = await f.create();
+        print('create F path:$_filePath');
+      }
+      print('创建文件');
+      if (_fcsv != null) {
+        await _fcsv!.close();
+        _fcsv = null;
+      }
+      _fcsv = f.openWrite(mode: FileMode.writeOnlyAppend);
     } catch (e) {
       return false;
     }
@@ -393,6 +484,11 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
                     _isConnecting = false;
                     _expansionList.clear();
                   });
+
+                  if (_timer != null) {
+                    _timer!.cancel();
+                    _timer = null;
+                  }
                   print('>>> 断开连接成功 $_isConnected <<<');
                 }).catchError((e) {
                   isTimeOut = true;
@@ -414,6 +510,11 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
                         snapshot.data == BluetoothDeviceState.connected;
                     _isConnecting = false;
                   });
+
+                  if (_timer != null) {
+                    _timer!.cancel();
+                    _timer = null;
+                  }
                 });
               };
               text = 'DISCONNECT';
@@ -626,10 +727,16 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
                                     c.setNotifyValue(isNot).then((value) async {
                                       bool isSucce = false;
                                       if (isNot) {
-                                        if (_fios != null) {
-                                          await _fios!.close();
-                                          _fios = null;
-                                          File f = File(_filePath);
+                                        if (_ftxt != null) {
+                                          await _ftxt!.close();
+                                          _ftxt = null;
+                                          File f = File('$_filePath.txt');
+                                          f.delete(recursive: true);
+                                        }
+                                        if (_fcsv != null) {
+                                          await _fcsv!.close();
+                                          _fcsv = null;
+                                          File f = File('$_filePath.csv');
                                           f.delete(recursive: true);
                                         }
                                         isSucce = await createFile(
@@ -643,13 +750,18 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
                                       }
                                       if (value) {
                                         if (isNot) {
-                                          _max = 10000;
+                                          setState(() {
+                                            _progress = 0;
+                                            _max = 10000;
+                                          });
                                           _data.clear();
                                           bleDataCallback(e[1]);
                                         } else {
                                           getDataTime = '';
                                           _cListenList[e[2]]?.cancel();
                                           _cListenList[e[2]] = null;
+                                          _timer?.cancel();
+                                          _timer = null;
                                         }
                                       }
                                       setState(() {
@@ -758,22 +870,41 @@ class _DeviceHandlePageState extends State<DeviceHandlePage> {
                         ElevatedButton(
                           onPressed: _isOpenFile
                               ? () {
-                                  if (_fios != null) {
-                                    _fios!.close().then((value) {
-                                      if (value is File) {
+                                  if (_ftxt == null) {
+                                    return;
+                                  }
+
+                                  _ftxt!.close().then((vtxt) {
+                                    String path = '';
+                                    if (vtxt is File) {
+                                      path = tt("text.saveSuccess") + vtxt.path;
+                                    }
+                                    _ftxt = null;
+                                    if (_fcsv == null) {
+                                      if (path.isNotEmpty) {
                                         BotToast.showText(
-                                          text:
-                                              '${tt('text.saveSuccess')} $value',
+                                          text: path,
                                           duration: const Duration(seconds: 10),
                                         );
                                       }
-                                      print(value);
+                                      return;
+                                    }
+                                    _fcsv!.close().then((vcsv) {
+                                      if (vcsv is File) {
+                                        path += '\nCSV: ${vcsv.path}';
+                                      }
+                                      if (path.isNotEmpty) {
+                                        BotToast.showText(
+                                          text: path,
+                                          duration: const Duration(seconds: 10),
+                                        );
+                                      }
                                       setState(() {
                                         _isOpenFile = false;
                                       });
-                                      _fios = null;
+                                      _fcsv = null;
                                     });
-                                  }
+                                  });
                                 }
                               : null,
                           child: Text(tt('btn.saveFile')),

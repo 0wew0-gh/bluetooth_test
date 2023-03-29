@@ -34,7 +34,6 @@ class _BuletoothTestPageState extends State<BuletoothTestPage> {
   List<FileSystemEntity> fileList = [];
   @override
   void initState() {
-    getPath();
     var subscription = flutterBlue.scanResults.listen((results) {
       print(">>>>>${results.length}<<<<<");
       if (_isFilterEmptyName) {
@@ -134,8 +133,6 @@ class _BuletoothTestPageState extends State<BuletoothTestPage> {
     }
   }
 
-  void traverseFolder() async {}
-
   void clearFile() {
     showDialog<void>(
       context: context,
@@ -165,6 +162,7 @@ class _BuletoothTestPageState extends State<BuletoothTestPage> {
 
   @override
   Widget build(BuildContext context) {
+    getPath();
     return Scaffold(
       appBar: AppBar(
         title: isOnBlue ? null : Text(tt('text.blueOff')),
@@ -237,8 +235,6 @@ class _BuletoothTestPageState extends State<BuletoothTestPage> {
                         );
                       }
                     });
-
-                    print("!!!\n@@@\n###\n===");
                   }),
                   child: Row(
                     mainAxisSize: MainAxisSize.max,

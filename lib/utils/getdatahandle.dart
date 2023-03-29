@@ -1,54 +1,13 @@
-import 'dart:async';
-
 import 'package:bluetooth_test/utils/data.dart';
 
-double fileLine = 100;
 List dataHandle(
   String event,
-  double progress,
-  double max,
-  int progressFile,
   int oldSN,
   int errCount,
 ) {
-  if (event.contains('ReadRecord')) {
-    print('=== ReadRecord ===');
-    DateTime dt = DateTime.now();
-    getDataTime = dt.toString().substring(0, 19);
-  } else if (event.startsWith('Deivce:')) {
-    print('=== DeivceID ===');
-    return ["DeivceID", "", progress, max, progressFile, oldSN, errCount];
-  } else if (event.contains('/')) {
-    List<String> temp = event.split("\n");
-    for (var e in temp) {
-      if (e.contains('/')) {
-        temp = e.split("/");
-      }
-    }
-    try {
-      int p = int.parse(temp[0]) - 1;
-      progress = p * fileLine;
-      progressFile = p;
-      max = double.parse(temp[1]) * fileLine;
-      if (max < progress) {
-        max = progress * 500;
-      }
-    } catch (e) {
-      print('progress Error:$e');
-      return ["error", "", progress, max, progressFile, oldSN, errCount];
-    }
-    return ["page", "\n", progress, max, progressFile, oldSN, errCount];
-  } else if (event.contains('SN Time')) {
-  } else if (event.contains('FileEnd')) {
-    return ["FileEnd", "", max, max, progressFile, oldSN, errCount];
-  }
-
   String text = "";
   List<String> temp = event.split("\n");
   for (var element in temp) {
-    // if (element.length < 2) {
-    //   continue;
-    // }
     List<String> tempList = element.split(" ");
     int sn = 0;
     try {
@@ -95,12 +54,6 @@ List dataHandle(
       }
     }
 
-    //进度条推进
-    if (progress < (progressFile + 1) * fileLine) {
-      progress++;
-    } else {
-      fileLine++;
-    }
     text += tempStr;
   }
 
@@ -108,5 +61,5 @@ List dataHandle(
   text = text.replaceAll("\n,", ",");
   text = text.replaceAll("\n:", ":");
   text = text.replaceAll("\n ", "");
-  return ["Done", text, progress, max, progressFile, oldSN, errCount];
+  return ["Done", text, oldSN, errCount];
 }

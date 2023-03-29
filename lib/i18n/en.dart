@@ -3,7 +3,7 @@ Map en = {
   'text': {
     'unknownDevice': 'Unknown device',
     'setLinkMode': 'Set link mode',
-    'saveSuccess': 'Save success!\nAddress:',
+    'saveSuccess': 'Save success!\nTXT: ',
     'blueOff': 'Bluetooth is not turned on',
     'setSuccess': 'Setting done',
     'nofitySetError': 'Notification setting failed',
@@ -11,7 +11,7 @@ Map en = {
     'addListen': 'Add listen',
     'connTimeOut': 'Connect timeout',
     'disconnTimeOut': 'Disconnect timeout',
-    'transferDone': 'Transfer done\nMissing number',
+    'transferDone': 'Transfer done\nMissing number: ',
   },
   'btn': {
     'saveFile': 'Save file',
